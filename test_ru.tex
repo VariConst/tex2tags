@@ -1,0 +1,88 @@
+\documentclass[12pt]{article}
+\usepackage[T2A]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[english,russian]{babel}
+\usepackage{amsfonts,amsmath,amssymb,mathrsfs}
+\usepackage[a4paper,top=20mm,bottom=15mm,left=20mm,right=15mm]{geometry}
+
+\usepackage{hyphenat} % for \hyp{} command
+
+\DeclareMathOperator{\arsh}{arsh}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{document}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\title{\bf Тест программы tex2tags.py}
+\author{А. А. Автор}
+\date{}
+{\let\newpage\relax\maketitle}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{abstract}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Тест для программы\hyp{}помощника при переводе текстов, набранных с помощью
+\LaTeX
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\end{abstract}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\section{Раздел}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Здесь идёт выключная формула с использованием \$\$\ldots\$\$
+$$a = b + c.$$
+
+Здесь идут формулы с использованием окружения \verb+subequations+
+%
+\begin{subequations}\label{eq1}
+\begin{equation}
+    \int x^p dx = \frac{x^{p+1}}{p+1},\quad p \ne -1,
+\end{equation}
+%
+но
+%
+\begin{equation}
+    \int \frac{dx}{x} = \ln x.
+\end{equation}
+\end{subequations}
+
+Это просто формула в окружении \verb+equation+
+%
+\begin {equation}\label{eq2}
+    e^{i\varphi} = \cos\varphi + i\sin\varphi,
+\end {equation}
+%
+а это то же самое, но без номера формулы, т.\,е. \verb+equation*+
+%
+\begin{equation*}
+    \sin i\varphi = i\sh\varphi.
+\end{equation*}
+
+Теперь \verb+eqnarray+
+%
+\begin{eqnarray}
+    2x + 3y &=& 4, \\
+    7x + 18y &=& -9.
+\end{eqnarray}
+
+Опять \$\$\ldots\$\$, но теперь \$\$ на отдельных строках
+$$
+    \arsh x = \ln(x + \sqrt{1 + x^2}).
+$$
+
+Ссылка на библиографию \verb+cite+ на использованную литературу\cite{ref1,ref2}
+и ссылки \verb+ref+ на использованные формулы~(\ref{eq1}) и (\ref{eq2}).
+
+Формула в тексте \$\ldots\$ на одной строке $\sin^2x + \cos^2x = 1$ и на
+нескольких строках $\int\limits_{-\infty}^{+\infty} e^{-\alpha x^2} dx =
+\sqrt{\frac{\pi}{\alpha}},\quad \int\limits_{0}^{\infty} t^{p - 1} e^{-t} dt
+\equiv \Gamma(p) $.
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\begin{thebibliography}{9}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\bibitem{ref1}
+    Л. Д. Ландау, Е. М. Лифшиц, \textit{Механика}, Наука, Москва (1988).
+\bibitem{ref2}
+    Л. Д. Ландау, Е. М. Лифшиц, \textit{Теория поля}, Наука, Москва (1988).
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\end{thebibliography}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+\end{document}
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
