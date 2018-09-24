@@ -60,57 +60,62 @@ class Token:
         self.content = content
         self.number = number
 
-def get_token(input):
-    token = Token()
-    char = input.at()
-    if (char.isalpha()):
-        token.symbol = "identifier"
-        token.content += char
-        while (input.advance().isalpha()):
-            token.content += input.at()
-    elif (char.isdigit()):
-        token.symbol = "number"
-        token.content += char
-        while (input.advance().isdigit()):
-            token.content += input.at()
-        token.number = int(token.content)
-    elif ((char == "\\") or
-          (char == "{") or
-          (char == "}") or
-          (char == "<") or
-          (char == ">") or
-          (char == "*")):
-        token.symbol = char
-        token.content = token.symbol
-        input.advance()
-    elif (char == "$"):
-        if (input.advance() == "$"):
-            token.symbol = "$$"
-            token.content = token.symbol
-            input.advance()
+    def copy(self):
+        copy_token = Token(self.symbol, self.content, self.number)
+        return copy_token
+
+    def next(self, stream):
+        char = stream.at()
+        self.content = char
+        if (char.isalpha()):
+            self.symbol = "identifier"
+            while (stream.advance().isalpha()):
+                self.content += stream.at()
+        elif (char.isdigit()):
+            self.symbol = "number"
+            while (stream.advance().isdigit()):
+                self.content += stream.at()
+            self.number = int(self.content)
+        elif ((char == "\\") or
+              (char == "{") or
+              (char == "}") or
+              (char == "<") or
+              (char == ">")):
+            self.symbol = char
+            stream.advance()
+        elif (char == "$"):
+            if (stream.advance() == "$"):
+                self.symbol = "$$"
+                self.content += stream.at()
+                stream.advance()
+            else:
+                self.symbol = "$"
+        elif (char.isspace()):
+            self.symbol = "space"
+            while(stream.advance().isspace()):
+                self.content += stream.at()
         else:
-            token.symbol = "$"
-            token.content = token.symbol
-    elif (char.isspace()):
-        token.symbol = "space"
-        token.content = char
-        while(input.advance().isspace()):
-            token.content += input.at()
-    else:
-        token.symbol = "other"
-        token.content = char
-        input.advance()
+            self.symbol = "other"
+            stream.advance()
 
-    return token
+        return self
 
-def get_significant_token(input):
-    token = get_token(input)
-    while ((token.symbol == "space") or
-           (token.symbol == "other") or
-           (token.symbol == "*")):
-        token = get_token(input)
+    def next_significant(self, stream):
+        self.next(stream)
+        while ((self.symbol == "space") or
+               (self.symbol == "other")):
+            self.next(stream)
 
-    return token
+        return self
+
+# TODO: This won't work, because token is passed by value and get_token() won't
+# take effect on the external token
+#def accept_symbol(expected, token, input):
+#    if (token.symbol == expected):
+#        token = get_token(input)
+#        return True
+#
+#    return False
 
 program_name = sys.argv[0]
 args = sys.argv[1:]
@@ -163,45 +168,39 @@ def dump_into_file(filename, output):
     with open(filename, "w", encoding="utf-8") as file:
         file.write(output)
 
-#def accept_symbol(expected, token, input):
-#    if (token.symbol == expected):
-#        *Token = GetToken(Stream);
-#        return True;
-#
-#    return False;
-
 input = get_file_contents(original_file_name)
+token = Token()
 tag_count = 0
 tagged_output = ""
 tags = {}
 while (input.at()):
     content_start = input.index
-    token = get_token(input)
+    token.next(input)
     if (token.symbol == "\\"):
-        token = get_token(input)
+        token.next(input)
         content_end = input.index
         if (token.symbol == "identifier"):
             if (token.content == "begin"):
-                token = get_significant_token(input)
+                token.next_significant(input)
                 content_end = input.index
                 if (token.symbol == "{"):
-                    token = get_significant_token(input)
+                    token.next_significant(input)
                     content_end = input.index
                     if ((token.symbol == "identifier") and
                         ((token.content == "equation") or
                          (token.content == "subequations") or
                          (token.content == "eqnarray"))):
-                        start_token = token
+                        start_token = token.copy()
                         while True:
-                            if (get_significant_token(input).symbol == "\\"):
-                                token = get_significant_token(input)
+                            if (token.next_significant(input).symbol == "\\"):
+                                token.next_significant(input)
                                 if ((token.symbol == "identifier") and
                                     (token.content == "end")):
-                                    if (get_significant_token(input).symbol == "{"):
-                                        token = get_significant_token(input)
+                                    if (token.next_significant(input).symbol == "{"):
+                                        token.next_significant(input)
                                         if ((token.symbol == "identifier") and
                                             ((token.content == start_token.content))):
-                                            if (get_significant_token(input).symbol == "}"):
+                                            if (token.next_significant(input).symbol == "}"):
                                                 content_end = input.index
                                                 tagged_output += "<mt{0}>".format(tag_count)
 
@@ -215,8 +214,8 @@ while (input.at()):
                         tagged_output += input.content[content_start:content_end]
             elif ((token.content == "cite") or
                   (token.content == "ref")):
-                if (get_significant_token(input).symbol == "{"):
-                    while (get_significant_token(input).symbol != "}"):
+                if (token.next_significant(input).symbol == "{"):
+                    while (token.next_significant(input).symbol != "}"):
                         continue
                     content_end = input.index
                     tagged_output += "<mt{0}>".format(tag_count)
@@ -232,10 +231,10 @@ while (input.at()):
             tagged_output += input.content[content_start:content_end]
     elif ((token.symbol == "$") or
           (token.symbol == "$$")):
-        start_token = token
-        token = get_significant_token(input)
+        start_token = token.copy()
+        token.next_significant(input)
         while (token.symbol != start_token.symbol):
-            token = get_significant_token(input)
+            token.next_significant(input)
         content_end = input.index
         tagged_output += "<mt{0}>".format(tag_count)
 
@@ -253,20 +252,21 @@ if not untag_requested:
     dump_into_file(tagged_file_name, tagged_output)
 else:
     tagged_input = get_file_contents(tagged_file_name)
+    token = Token()
     untagged_output = ""
     while (tagged_input.at()):
         content_start = tagged_input.index
-        token = get_token(tagged_input)
+        token.next(tagged_input)
         if (token.symbol == "<"):
-            token = get_token(tagged_input)
+            token.next(tagged_input)
             content_end = tagged_input.index
             if ((token.symbol == "identifier") and
                 (token.content == "mt")):
-                token = get_token(tagged_input)
+                token.next(tagged_input)
                 content_end = tagged_input.index
                 if (token.symbol == "number"):
                     tag_count = token.number
-                    token = get_token(tagged_input)
+                    token.next(tagged_input)
                     if (token.symbol == ">"):
                         tag_label = "<mt{0}>".format(tag_count)
                         untagged_output += tags[tag_label]
