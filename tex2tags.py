@@ -1,3 +1,5 @@
+# TODO: Add doc comments after the code is in final shape
+
 replaceable_environments = ["equation",
                             "subequations",
                             "eqnarray"]
@@ -90,29 +92,32 @@ class Stream:
 
         return self.at()
 
+# TODO: Mark "private" members and methods with leading "_"
 class Tagger:
     def __init__(self, replaceable_environments, replaceable_commands_with_braces):
-        self.input_stream = Stream()
-        self.output = ""
+        self.init_state()
 
         self.replaceable_environments = replaceable_environments
         self.replaceable_commands_with_braces = replaceable_commands_with_braces
         self.trackable_tex_commands = ["begin", "end"] + self.replaceable_commands_with_braces
 
-        self.token = Token()
-
-        self.inside_replaceable = False
-        self.replaceable = ""
         self.tags = {}
 
-    def tag_tex_file(self, filename):
-        self.input_stream.load_file_contents(filename)
+    def init_state(self, filename=None):
+        self.input_stream = Stream()
+        if filename:
+            self.input_stream.load_file_contents(filename)
+
         self.output = ""
 
         self.token = Token()
 
         self.inside_replaceable = False
         self.replaceable = ""
+
+    def tag_tex_file(self, filename):
+        self.init_state(filename)
+
         self.tags = {}
 
         tag_count = 0
@@ -129,6 +134,8 @@ class Tagger:
 
         return self.output
 
+    # TODO: Make it so that it's not necessary to run tag_tex_file() first in
+    # order to obtain tags?
     def untag_tex_file(self, filename):
         self.input_stream.load_file_contents(filename)
         self.output = ""
@@ -139,13 +146,18 @@ class Tagger:
         self.replaceable = ""
 
         while self.expect_tag():
-            self.inside_replaceable = False
             tag_label = self.replaceable
             tag_content = self.tags[tag_label]
             self.output += tag_content
+
+            self.inside_replaceable = False
             self.replaceable = ""
 
         return self.output
+
+    def debug_print_tags(self):
+        for tag_label, tag_content in self.tags.items():
+            print(tag_label + tag_content)
 
     # NOTE: Recursive descent parser
     # "accept" methods on fail do not advance position in input_stream and do
@@ -208,7 +220,7 @@ class Tagger:
             self.input_stream.advance()
 
         else:
-            self.token.symbol = "end_of_file"
+            self.token.symbol = "end_of_stream"
             self.token.content = ""
 
         return self.token
@@ -333,6 +345,8 @@ class Tagger:
 
             return True
 
+    # TODO: Collapse the further 3 methods into 1 master method?
+    # TODO: Is it also reasonable to include the method above?
     def accept_inline_math(self):
         assert(not self.inside_replaceable)
 
@@ -382,7 +396,7 @@ class Tagger:
         assert(not self.inside_replaceable)
 
         while True:
-            while (self.token.symbol != "end_of_file"):
+            while (self.token.symbol != "end_of_stream"):
                 if self.token.symbol not in (["begin", "$", "$$"] +
                                              self.replaceable_commands_with_braces):
                     self.output += self.token.content
@@ -411,7 +425,7 @@ class Tagger:
         assert(not self.inside_replaceable)
 
         while True:
-            while (self.token.symbol != "end_of_file"):
+            while (self.token.symbol != "end_of_stream"):
                 if self.expect_symbol("<"):
                     break
             else:
@@ -462,8 +476,7 @@ else:
 tagger = Tagger(replaceable_environments, replaceable_commands_with_braces)
 tagged_output = tagger.tag_tex_file(original_file_name)
 
-#for tag_label in tagger.tags:
-#    print(tag_label + tagger.tags[tag_label])
+#tagger.debug_print_tags()
 
 # TODO: More differentiation with and without --untag flag? Like do not
 # generate tagged_output if untagging or do not generate tags dict if tagging
