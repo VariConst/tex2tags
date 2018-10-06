@@ -94,38 +94,38 @@ class Tagger:
     def __init__(self, replaceable_environments, replaceable_commands_with_braces):
         self.input_stream = Stream()
         self.output = ""
+
         self.replaceable_environments = replaceable_environments
         self.replaceable_commands_with_braces = replaceable_commands_with_braces
-
-        self.prev_token_end_index = 0
-        self.token_start_index = 0
-        self.token = Token()
         self.trackable_tex_commands = ["begin", "end"] + self.replaceable_commands_with_braces
 
-        self.tag_count = 0
+        self.token = Token()
+
+        self.inside_replaceable = False
+        self.replaceable = ""
         self.tags = {}
 
     def tag_tex_file(self, filename):
         self.input_stream.load_file_contents(filename)
         self.output = ""
 
-        self.prev_token_end_index = 0
-        self.token_start_index = 0
         self.token = Token()
 
-        while self.input_stream.at():
-            start = self.token_start_index
-            start_token = self.token.copy()
-            if not self.expect_replaceable():
-                self.output += self.input_stream.content[start:self.token_start_index]
-            else:
-                tag_label = "<mt{0}>".format(self.tag_count)
-                tag_content = self.input_stream.content[start:self.prev_token_end_index]
-                self.tags[tag_label] = tag_content
-                self.tag_count += 1
+        self.inside_replaceable = False
+        self.replaceable = ""
+        self.tags = {}
 
-                self.output += tag_label
-                self.output += self.input_stream.content[self.prev_token_end_index:self.token_start_index]
+        tag_count = 0
+        while self.expect_replaceable():
+            tag_label = "<mt{0}>".format(tag_count)
+            tag_content = self.replaceable
+            self.tags[tag_label] = tag_content
+
+            self.output += tag_label
+
+            self.inside_replaceable = False
+            self.replaceable = ""
+            tag_count += 1
 
         return self.output
 
@@ -133,101 +133,105 @@ class Tagger:
         self.input_stream.load_file_contents(filename)
         self.output = ""
 
-        self.prev_token_end_index = 0
-        self.token_start_index = 0
         self.token = Token()
 
-        while self.input_stream.at():
-            start = self.token_start_index
-            start_token = self.token.copy()
-            if not self.accept_tag():
-                self.next_token()
-                self.output += self.input_stream.content[start:self.token_start_index]
-            else:
-                tag_label = "<mt{0}>".format(self.tag_count)
-                tag_content = self.tags[tag_label]
-                self.output += tag_content
-                self.output += self.input_stream.content[self.prev_token_end_index:self.token_start_index]
+        self.inside_replaceable = False
+        self.replaceable = ""
+
+        while self.expect_tag():
+            self.inside_replaceable = False
+            tag_label = self.replaceable
+            tag_content = self.tags[tag_label]
+            self.output += tag_content
+            self.replaceable = ""
 
         return self.output
 
     # NOTE: Recursive descent parser
+    # "accept" methods on fail do not advance position in input_stream and do
+    # not change state inside_replaceable to False,
+    # "expect" methods demand specific rule in place and on fail change state
+    # inside_replaceable to False and advance input_stream
     # TODO: Take into account \verb+$$+ etc.
     # TODO: Take into account $a = b \text{where $a$ is ...}$ etc.
     def next_token(self):
-        self.prev_token_end_index = self.input_stream.index
-        while True:
-            self.token_start_index = self.input_stream.index
-            char = self.input_stream.at()
-            self.token.content = char
-            if (char.isalpha()):
-                self.token.symbol = "identifier"
+        char = self.input_stream.at()
+        self.token.content = char
+        if (char.isalpha()):
+            self.token.symbol = "identifier"
+            while (self.input_stream.advance().isalpha()):
+                self.token.content += self.input_stream.at()
+
+        elif (char.isdigit()):
+            self.token.symbol = "number"
+            while (self.input_stream.advance().isdigit()):
+                self.token.content += self.input_stream.at()
+            self.token.number = int(self.token.content)
+
+        elif (char == "\\"):
+            if (self.input_stream.advance().isalpha()):
+                self.token.content += self.input_stream.at()
                 while (self.input_stream.advance().isalpha()):
                     self.token.content += self.input_stream.at()
 
-                break
+                for command in self.trackable_tex_commands:
+                    if (self.token.content == ("\\" + command)):
+                        self.token.symbol = command
 
-            elif (char.isdigit()):
-                self.token.symbol = "number"
-                while (self.input_stream.advance().isdigit()):
-                    self.token.content += self.input_stream.at()
-                self.token.number = int(self.token.content)
-
-                break
-
-            elif (char == "\\"):
-                if (self.input_stream.advance().isalpha()):
-                    self.token.content += self.input_stream.at()
-                    while (self.input_stream.advance().isalpha()):
-                        self.token.content += self.input_stream.at()
-
-                    command_match = False
-                    for command in self.trackable_tex_commands:
-                        if (self.token.content == ("\\" + command)):
-                            self.token.symbol = command
-                            command_match = True
-
-                            break
-
-                    if command_match:
                         break
 
                 else:
-                    self.input_stream.advance()
-
-            elif ((char == "{") or
-                  (char == "}") or
-                  (char == "<") or
-                  (char == ">")):
-                self.token.symbol = char
-                self.input_stream.advance()
-
-                break
-
-            elif (char == "$"):
-                if (self.input_stream.advance() == "$"):
-                    self.token.symbol = "$$"
-                    self.token.content += self.input_stream.at()
-                    self.input_stream.advance()
-                else:
-                    self.token.symbol = "$"
-
-                break
-
-            elif self.input_stream.at():
-                self.input_stream.advance()
+                    self.token.symbol = "other"
 
             else:
-                self.token.symbol = "end_of_file"
-                self.token.content = ""
+                self.token.symbol = "other"
+                self.token.content += self.input_stream.at()
+                self.input_stream.advance()
 
-                break
+        elif ((char == "{") or
+              (char == "}") or
+              (char == "<") or
+              (char == ">")):
+            self.token.symbol = char
+            self.input_stream.advance()
+
+        elif (char == "$"):
+            if (self.input_stream.advance() == "$"):
+                self.token.symbol = "$$"
+                self.token.content += self.input_stream.at()
+                self.input_stream.advance()
+            else:
+                self.token.symbol = "$"
+
+        elif self.input_stream.at():
+            self.token.symbol = "other"
+            self.input_stream.advance()
+
+        else:
+            self.token.symbol = "end_of_file"
+            self.token.content = ""
 
         return self.token
 
-    def accept_symbol(self, expected):
-        if (self.token.symbol == expected):
+    def consume_other_symbols(self):
+        buffer = ""
+        while (self.token.symbol == "other"):
+            buffer += self.token.content
             self.next_token()
+
+        if self.inside_replaceable:
+            self.replaceable += buffer
+        else:
+            self.output += buffer
+
+    def accept_symbol(self, expected):
+        self.consume_other_symbols()
+
+        if (self.token.symbol == expected):
+            self.inside_replaceable = True
+            self.replaceable += self.token.content
+            self.next_token()
+
             return True
 
         return False
@@ -243,70 +247,85 @@ class Tagger:
         if self.accept_symbol(expected):
             return True
 
+        self.inside_replaceable = False
+        self.output += (self.replaceable + self.token.content)
+        self.replaceable = ""
         self.next_token()
+
+        return False
+
+    def accept_identifier(self, expected_identifier):
+        self.consume_other_symbols()
+
+        if (self.token.content == expected_identifier):
+            assert(self.token.symbol == "identifier")
+            assert(self.inside_replaceable)
+
+            self.replaceable += self.token.content
+            self.next_token()
+
+            return True
+
+        return False
+
+    def accept_one_of_identifiers(self, expected_identifiers):
+        for ident in expected_identifiers:
+            if self.accept_identifier(ident):
+                return True
+
         return False
 
     def expect_identifier(self, expected_identifier):
-        token_content = self.token.content
-        if self.expect_symbol("identifier"):
-            if (token_content != expected_identifier):
-                return False
-        else:
+        if self.accept_identifier(expected_identifier):
+            return True
+
+        self.inside_replaceable = False
+        self.output += (self.replaceable + self.token.content)
+        self.replaceable = ""
+        self.next_token()
+
+        return False
+
+    def expect_one_of_identifiers(self, expected_identifiers):
+        for ident in expected_identifiers:
+            if self.accept_identifier(ident):
+                return True
+
+        self.inside_replaceable = False
+        self.output += (self.replaceable + self.token.content)
+        self.replaceable = ""
+        self.next_token()
+
+        return False
+
+    def expect_begin_end_environment(self):
+        assert(not self.inside_replaceable)
+
+        if not self.expect_symbol("begin"):
             return False
 
-        return True
-
-    def accept_inline_math(self):
-        if not self.accept_symbol("$"):
+        if not self.expect_symbol("{"):
             return False
 
-        while not self.expect_symbol("$"):
-            continue
-
-        return True
-
-    def accept_display_math(self):
-        if not self.accept_symbol("$$"):
-            return False
-
-        while not self.expect_symbol("$$"):
-            if not self.input_stream.at():
-                return False
-            continue
-
-        return True
-
-    def accept_begin_end_environment(self):
-        if not self.accept_symbol("begin"):
-            return False
-
-        if not self.accept_symbol("{"):
-            return False
-
-        token_content = self.token.content
-        environment = ""
-        if self.expect_symbol("identifier"):
-            for env in self.replaceable_environments:
-                if (token_content == env):
-                    environment = env
-                    break
-            else:
-                return False
-        else:
+        environment = self.token.content
+        if not self.expect_one_of_identifiers(self.replaceable_environments):
             return False
 
         if not self.expect_symbol("}"):
             return False
 
-
         while True:
-            if not self.expect_symbol("end"):
+            if not self.accept_symbol("end"):
+                self.replaceable += self.token.content
+                self.next_token()
                 continue
 
-            if not self.accept_symbol("{"):
+            if not self.expect_symbol("{"):
                 continue
 
-            if not self.expect_identifier(environment):
+            if not self.accept_identifier(environment):
+                self.replaceable += self.token.content
+                self.next_token()
                 continue
 
             if not self.expect_symbol("}"):
@@ -314,51 +333,98 @@ class Tagger:
 
             return True
 
+    def accept_inline_math(self):
+        assert(not self.inside_replaceable)
+
+        if not self.accept_symbol("$"):
+            return False
+
+        # TODO: Robustness: make ALL while loops terminate if the end of stream is
+        # reached
+        while not self.accept_symbol("$"):
+            self.replaceable += self.token.content
+            self.next_token()
+
+        return True
+
+    def accept_display_math(self):
+        assert(not self.inside_replaceable)
+
+        if not self.accept_symbol("$$"):
+            return False
+
+        assert(self.inside_replaceable)
+
+        while not self.accept_symbol("$$"):
+            self.replaceable += self.token.content
+            self.next_token()
+
+        return True
+
     def accept_command_with_braces(self):
+        assert(not self.inside_replaceable)
+
         if not self.accept_one_of_symbols(self.replaceable_commands_with_braces):
             return False
+
+        assert(self.inside_replaceable)
 
         if not self.expect_symbol("{"):
             return False
 
-        while not self.expect_symbol("}"):
-            continue
+        while not self.accept_symbol("}"):
+            self.replaceable += self.token.content
+            self.next_token()
 
         return True
 
     def expect_replaceable(self):
-        if self.accept_inline_math():
-            return True
+        assert(not self.inside_replaceable)
 
-        if self.accept_display_math():
-            return True
+        while True:
+            while (self.token.symbol != "end_of_file"):
+                if self.token.symbol not in (["begin", "$", "$$"] +
+                                             self.replaceable_commands_with_braces):
+                    self.output += self.token.content
+                    self.next_token()
+                else:
+                    break
+            else:
+                return False
 
-        if self.accept_begin_end_environment():
-            return True
+            if (self.token.symbol == "begin"):
+                if self.expect_begin_end_environment():
+                    return True
+                else:
+                    continue
 
-        if self.accept_command_with_braces():
-            return True
+            if self.accept_inline_math():
+                return True
 
-        self.next_token()
-        return False
+            if self.accept_display_math():
+                return True
 
-    def accept_tag(self):
-        if not self.accept_symbol("<"):
-            return False
+            if self.accept_command_with_braces():
+                return True
 
-        if not self.expect_identifier("mt"):
-            return False
+    def expect_tag(self):
+        assert(not self.inside_replaceable)
 
-        if (self.token.symbol == "number"):
-            self.tag_count = self.token.number
-            self.next_token()
-        else:
-            return False
+        while True:
+            while (self.token.symbol != "end_of_file"):
+                if self.expect_symbol("<"):
+                    break
+            else:
+                return False
 
-        if not self.expect_symbol(">"):
-            return False
+            if not self.expect_identifier("mt"):
+                continue
 
-        return True
+            if not self.expect_symbol("number"):
+                continue
+
+            if self.expect_symbol(">"):
+                return True
 
 program_name = sys.argv[0]
 args = sys.argv[1:]
